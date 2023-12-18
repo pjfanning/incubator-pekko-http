@@ -74,7 +74,7 @@ class H2ClientServerBenchmark extends CommonBenchmark with H2RequestResponseBenc
     initRequestResponse()
 
     val resetFrameConfig = ConfigFactory.parseString(
-      s"pekko.http.server.http2.reset-frame-throttle-interval=$resetFrameThrottleInterval")
+      s"pekko.http.server.http2.reset-frame.throttle-interval=$resetFrameThrottleInterval")
     system = ActorSystem("PekkoHttpBenchmarkSystem", resetFrameConfig.withFallback(config))
     val settings = implicitly[ServerSettings]
     val log = system.log
