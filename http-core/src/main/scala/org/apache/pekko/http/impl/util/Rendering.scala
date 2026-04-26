@@ -289,7 +289,11 @@ private[http] class StringRendering extends Rendering {
       else this
     rec()
   }
-  def ~~(bytes: ByteString): this.type = this ~~ bytes.toArray[Byte]
+  def ~~(bytes: ByteString): this.type = {
+    val it = bytes.iterator
+    while (it.hasNext) this ~~ it.next().asInstanceOf[Char]
+    this
+  }
   def get: String = sb.toString
 
   override protected def mark: Int = sb.length()
