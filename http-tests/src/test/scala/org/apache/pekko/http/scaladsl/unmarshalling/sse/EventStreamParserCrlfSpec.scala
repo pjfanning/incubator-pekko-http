@@ -192,12 +192,11 @@ final class EventStreamParserCrlfSpec extends AsyncWordSpec with Matchers with B
     "receiving a CRLF stream delivered in multiple small chunks" should {
 
       "parse events correctly when CRLF is split across chunk boundaries" in {
-        // The \r and \n of the CRLF pair arrive in separate ByteString chunks
+        // The \r and \n of the CRLF pair for event1 arrive in separate ByteString chunks
         val chunks = Vector(
-          ByteString("data: event1\r"),
-          ByteString("\r"),
-          ByteString("\ndata: event2\r\n"),
-          ByteString("\r\n"))
+          ByteString("data: event1\r"),     // ends with \r
+          ByteString("\n\r\n"),             // \n completes the CRLF; \r\n is the event separator
+          ByteString("data: event2\r\n\r\n"))
         Source(chunks)
           .via(EventStreamParser(maxLineSize, maxEventSize))
           .runWith(Sink.seq)
