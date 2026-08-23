@@ -83,6 +83,7 @@ private[engine] final class HttpHeaderParser private (
     val settings: HttpHeaderParser.Settings,
     val log: LoggingAdapter,
     onIllegalHeader: ErrorInfo => Unit,
+    val illegalHeaderNameProcessingMode: IllegalResponseHeaderNameProcessingMode,
     private var nodes: Array[Char] = new Array(512), // initial size, can grow as needed
     private var nodeCount: Int = 0,
     private var branchData: Array[Short] = new Array(254 * 3),
@@ -106,9 +107,15 @@ private[engine] final class HttpHeaderParser private (
   /**
    * Returns a copy of this parser that shares the trie data with this instance.
    */
-  def createShallowCopy(): HttpHeaderParser =
-    new HttpHeaderParser(settings, log, onIllegalHeader, nodes, nodeCount, branchData, branchDataCount, values,
-      valueCount)
+  def createShallowCopy(): HttpHeaderParser = createShallowCopy(illegalHeaderNameProcessingMode)
+
+  /**
+   * Creates a shallow copy that treats illegal characters in header names according to the given mode. Used to parse
+   * requests strictly even when the `illegal-response-header-name-processing-mode` setting is lenient.
+   */
+  def createShallowCopy(illegalHeaderNameProcessingMode: IllegalResponseHeaderNameProcessingMode): HttpHeaderParser =
+    new HttpHeaderParser(settings, log, onIllegalHeader, illegalHeaderNameProcessingMode, nodes, nodeCount, branchData,
+      branchDataCount, values, valueCount)
 
   /**
    * Parses a header line and returns the line start index of the subsequent line.
@@ -183,7 +190,7 @@ private[engine] final class HttpHeaderParser private (
 
   @tailrec private def scanHeaderNameAndReturnIndexOfColon(input: ByteString, start: Int, limit: Int)(ix: Int): Int =
     if (ix < limit)
-      (byteChar(input, ix), settings.illegalResponseHeaderNameProcessingMode) match {
+      (byteChar(input, ix), illegalHeaderNameProcessingMode) match {
         case (':', _)                                           => ix
         case (c, _) if tchar(c)                                 => scanHeaderNameAndReturnIndexOfColon(input, start, limit)(ix + 1)
         case (c, IllegalResponseHeaderNameProcessingMode.Error) =>
@@ -497,6 +504,14 @@ private[http] object HttpHeaderParser {
   def apply(settings: HttpHeaderParser.Settings, log: LoggingAdapter) =
     prime(unprimed(settings, log, defaultIllegalHeaderHandler(settings, log)))
 
+  /**
+   * Parser for messages a server receives. `illegal-response-header-name-processing-mode` configures how lenient the
+   * client is when it parses responses, so it must not relax the header names a server accepts in a request.
+   */
+  def forRequests(settings: HttpHeaderParser.Settings, log: LoggingAdapter) =
+    prime(unprimed(settings, log, defaultIllegalHeaderHandler(settings, log),
+      IllegalResponseHeaderNameProcessingMode.Error))
+
   def defaultIllegalHeaderHandler(settings: HttpHeaderParser.Settings, log: LoggingAdapter): ErrorInfo => Unit =
     if (settings.illegalHeaderWarnings)
       info =>
@@ -505,8 +520,16 @@ private[http] object HttpHeaderParser {
     else
       (_: ErrorInfo) => () // Does exactly what the label says - nothing
 
-  def unprimed(settings: HttpHeaderParser.Settings, log: LoggingAdapter, warnOnIllegalHeader: ErrorInfo => Unit) =
-    new HttpHeaderParser(settings, log, warnOnIllegalHeader)
+  def unprimed(settings: HttpHeaderParser.Settings, log: LoggingAdapter, warnOnIllegalHeader: ErrorInfo => Unit)
+      : HttpHeaderParser =
+    unprimed(settings, log, warnOnIllegalHeader, settings.illegalResponseHeaderNameProcessingMode)
+
+  def unprimed(
+      settings: HttpHeaderParser.Settings,
+      log: LoggingAdapter,
+      warnOnIllegalHeader: ErrorInfo => Unit,
+      illegalHeaderNameProcessingMode: IllegalResponseHeaderNameProcessingMode): HttpHeaderParser =
+    new HttpHeaderParser(settings, log, warnOnIllegalHeader, illegalHeaderNameProcessingMode)
 
   def prime(parser: HttpHeaderParser): HttpHeaderParser = {
     val headerParserFilter: String => Boolean =

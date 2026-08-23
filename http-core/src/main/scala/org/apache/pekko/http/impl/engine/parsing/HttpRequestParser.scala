@@ -29,6 +29,7 @@ import pekko.http.scaladsl.model.{ ParsingException => _, _ }
 import pekko.http.scaladsl.model.headers._
 import pekko.http.scaladsl.model.StatusCodes._
 import pekko.http.scaladsl.settings.{ ParserSettings, WebSocketSettings }
+import pekko.http.scaladsl.settings.ParserSettings.IllegalResponseHeaderNameProcessingMode
 import ParserOutput._
 import pekko.stream.{ Attributes, FlowShape, Inlet, Outlet }
 import pekko.stream.TLSProtocol.SessionBytes
@@ -63,7 +64,10 @@ private[http] final class HttpRequestParser(
       import HttpMessageParser._
 
       override val settings = self.settings
-      override val headerParser = self.headerParser.createShallowCopy()
+      // `illegal-response-header-name-processing-mode` is about parsing responses on the client side, it must not
+      // relax the header names this server accepts in a request
+      override val headerParser =
+        self.headerParser.createShallowCopy(IllegalResponseHeaderNameProcessingMode.Error)
       override val isResponseParser = false
 
       private var method: HttpMethod = null

@@ -663,6 +663,20 @@ abstract class RequestParserSpec(mode: String, newLine: String) extends AnyFreeS
           ErrorInfo("HTTP header value exceeds the configured limit of 32 characters"))
       }
 
+      "with an illegal character in a header name even when the response leniency setting is on" in new Test {
+        // `illegal-response-header-name-processing-mode` configures response parsing on the client side and must not
+        // relax what a server accepts in a request
+        override protected def parserSettings: ParserSettings =
+          super.parserSettings.withIllegalResponseHeaderNameProcessingMode(
+            ParserSettings.IllegalResponseHeaderNameProcessingMode.Ignore)
+
+        """GET / HTTP/1.1
+          |Host: x
+          |Fo o: bar
+          |
+          |""" should parseToError(BadRequest, ErrorInfo("Illegal character ' ' in header name"))
+      }
+
       "with an invalid Content-Length header value" in new Test {
         """GET / HTTP/1.0
           |Content-Length: 1.5
