@@ -121,7 +121,7 @@ private[http] object Http2Blueprint {
       upgraded: Boolean = false,
       telemetry: TelemetrySpi,
     dateHeaderRendering: DateHeaderRendering): BidiFlow[HttpResponse, ByteString, ByteString, HttpRequest, ServerTerminator] = {
-    val masterHttpHeaderParser = HttpHeaderParser(settings.parserSettings, log) // FIXME: reuse for framing
+    val masterHttpHeaderParser = HttpHeaderParser.forRequests(settings.parserSettings, log) // FIXME: reuse for framing
     
     val initialFlow = telemetry.serverConnection atop
       httpLayer(settings, log, dateHeaderRendering) atopKeepRight
@@ -283,7 +283,7 @@ private[http] object Http2Blueprint {
     // This is master header parser, every other usage should do .createShallowCopy()
     // HttpHeaderParser is not thread safe and should not be called concurrently,
     // the internal trie, however, has built-in protection and will do copy-on-write
-    val masterHttpHeaderParser = HttpHeaderParser(parserSettings, log)
+    val masterHttpHeaderParser = HttpHeaderParser.forRequests(parserSettings, log)
     RequestErrorFlow().atop(
       BidiFlow.fromFlows(
         Flow[HttpResponse].map(new ResponseRendering(settings, log, dateHeaderRendering)),
